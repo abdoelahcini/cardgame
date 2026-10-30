@@ -14,6 +14,11 @@ The site is static `public/` plus two functions: `api/action.js` and `api/poll.j
 Room state is stored in Upstash Redis. Add it from the Vercel Marketplace, and it sets
 `KV_REST_API_URL` / `KV_REST_API_TOKEN` for you. Browsers poll about once a second for changes.
 
+## Chat
+
+Tap 💬 in the top-right corner to chat in the lobby or during a game. Messages from the other player show a
+badge and a short preview. Each room keeps its last 60 messages, up to 200 characters each.
+
 ## Cards (108)
 
 | Card | Effect |

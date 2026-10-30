@@ -2,6 +2,8 @@
 const COLORS = ['sun', 'leaf', 'wave', 'ember'];
 const HAND_SIZE = 7;
 const MAX_PLAYERS = 4;
+const CHAT_MAX = 200;  // characters per message
+const CHAT_KEEP = 60;  // messages kept per room
 
 let nextCardId = 1;
 
@@ -269,6 +271,15 @@ class Room {
     this.say(`${by.name} caught ${t.name} — +2 cards!`);
   }
 
+  chatSay(id, text) {
+    const p = this.player(id);
+    text = String(text || '').replace(/\s+/g, ' ').trim().slice(0, CHAT_MAX);
+    if (!text) throw new GameError('Type a message first');
+    if (!this.chat) { this.chat = []; this.chatSeq = 0; }
+    this.chat.push({ id: ++this.chatSeq, pid: p.id, name: p.name, text, t: Date.now() });
+    if (this.chat.length > CHAT_KEEP) this.chat.shift();
+  }
+
   endRound(w) {
     const pts = this.players.filter(p => p !== w).reduce((s, p) => s + p.hand.reduce((a, c) => a + cardPoints(c), 0), 0);
     w.score += pts;
@@ -303,6 +314,7 @@ class Room {
       round: this.round,
       winner: this.winner,
       log: this.log.slice(-12),
+      chat: this.chat || [],
     };
   }
 }

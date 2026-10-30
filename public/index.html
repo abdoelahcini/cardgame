@@ -131,7 +131,38 @@
   .scores .left { display: flex; flex-wrap: wrap; margin-top: 4px; }
   .toast { position: fixed; top: 16px; left: 50%; transform: translateX(-50%); background: var(--ember); color: #fff;
     padding: 10px 18px; border-radius: 12px; z-index: 20; font-weight: 600; transition: opacity .3s; }
-  .conn { position: fixed; bottom: 8px; right: 10px; font-size: 12px; color: var(--muted); }
+  .conn { position: fixed; bottom: 8px; left: 10px; font-size: 12px; color: var(--muted); }
+
+  /* Chat */
+  .chat-btn {
+    position: fixed; right: 12px; top: 12px; z-index: 15; width: 46px; height: 46px; padding: 0;
+    border-radius: 50%; font-size: 22px; background: #fff; box-shadow: 0 4px 14px rgba(0,0,0,.4);
+  }
+  .chat-btn .badge {
+    position: absolute; top: -4px; right: -4px; min-width: 22px; height: 22px; padding: 0 6px; border-radius: 11px;
+    background: var(--ember); color: #fff; font-size: 13px; line-height: 22px;
+  }
+  .chat-peek {
+    position: fixed; right: 12px; top: 66px; z-index: 15; max-width: min(280px, calc(100vw - 32px));
+    background: #fff; color: #173a33; padding: 8px 12px; border-radius: 14px 4px 14px 14px;
+    box-shadow: 0 4px 14px rgba(0,0,0,.35); font-size: 14px; cursor: pointer; overflow-wrap: anywhere;
+  }
+  .chat-panel {
+    position: fixed; right: 12px; top: 12px; z-index: 16; width: min(320px, calc(100vw - 24px)); height: min(440px, calc(100dvh - 24px));
+    display: flex; flex-direction: column; background: #1d4a41; border-radius: 16px; overflow: hidden;
+    box-shadow: 0 8px 28px rgba(0,0,0,.5);
+  }
+  .chat-head { display: flex; justify-content: space-between; align-items: center; padding: 10px 14px; background: rgba(0,0,0,.2); font-weight: 600; }
+  .chat-head button { padding: 4px 10px; background: transparent; color: #fff; font-size: 18px; }
+  .chat-list { flex: 1; overflow-y: auto; padding: 10px 12px; display: flex; flex-direction: column; gap: 6px; }
+  .chat-empty { color: var(--muted); text-align: center; margin: auto; font-size: 14px; }
+  .msg { max-width: 82%; padding: 7px 11px; border-radius: 14px; font-size: 15px; line-height: 1.35; overflow-wrap: anywhere; user-select: text; }
+  .msg .who { display: block; font-size: 11px; color: var(--muted); margin-bottom: 2px; }
+  .msg.them { align-self: flex-start; background: rgba(255,255,255,.12); border-bottom-left-radius: 4px; }
+  .msg.mine { align-self: flex-end; background: var(--sun); color: #3a2a00; border-bottom-right-radius: 4px; }
+  .chat-form { display: flex; gap: 6px; padding: 10px; background: rgba(0,0,0,.2); }
+  .chat-form input { padding: 10px 12px; }
+  .chat-form button { padding: 10px 14px; }
 
   @media (max-width: 560px) {
     .card { width: 66px; height: 98px; border-width: 3px; }
@@ -237,6 +268,18 @@
   </div>
 </div>
 
+<!-- Chat -->
+<button id="chatBtn" class="chat-btn hidden" title="Chat">💬<span id="chatBadge" class="badge hidden"></span></button>
+<div id="chatPeek" class="chat-peek hidden"></div>
+<div id="chatPanel" class="chat-panel hidden">
+  <div class="chat-head"><span>Chat</span><button id="chatClose" title="Close">✕</button></div>
+  <div class="chat-list" id="chatList"></div>
+  <form class="chat-form" id="chatForm">
+    <input id="chatIn" maxlength="200" placeholder="Say something…" autocomplete="off">
+    <button class="hot" type="submit">Send</button>
+  </form>
+</div>
+
 <div id="toast" class="toast hidden"></div>
 <div id="conn" class="conn"></div>
 
@@ -266,7 +309,66 @@ function applyState(s, v) {
 function applyOnline() {
   if (state) for (const p of state.players) p.connected = p.id === state.you || online.includes(p.id);
 }
-function leaveRoom() { state = null; version = 0; store.del('spark.room'); render(); }
+function leaveRoom() { state = null; version = 0; chatOpen = false; seenChatId = null; store.del('spark.room'); render(); }
+
+// Chat: messages arrive with the room state; we only track what this viewer has seen.
+let chatOpen = false, seenChatId = null, renderedChatId = null, peekTimer;
+
+function renderChat() {
+  const inRoom = !!state;
+  $('chatBtn').classList.toggle('hidden', !inRoom || chatOpen);
+  $('chatPanel').classList.toggle('hidden', !inRoom || !chatOpen);
+  if (!inRoom) { $('chatPeek').classList.add('hidden'); return; }
+
+  const chat = state.chat || [];
+  const lastId = chat.length ? chat[chat.length - 1].id : 0;
+  if (seenChatId === null) seenChatId = lastId; // don't flag old messages after a reload
+
+  if (lastId !== renderedChatId) {
+    const list = $('chatList');
+    const atBottom = list.scrollHeight - list.scrollTop - list.clientHeight < 40;
+    list.innerHTML = chat.length ? chat.map(m =>
+      `<div class="msg ${m.pid === state.you ? 'mine' : 'them'}">${m.pid === state.you ? '' : `<span class="who">${esc(m.name)}</span>`}${esc(m.text)}</div>`
+    ).join('') : '<div class="chat-empty">No messages yet — say hi 👋</div>';
+    if (atBottom || renderedChatId === null || chat[chat.length - 1]?.pid === state.you) list.scrollTop = list.scrollHeight;
+    renderedChatId = lastId;
+  }
+
+  if (chatOpen) seenChatId = lastId;
+  const unread = chat.filter(m => m.id > seenChatId && m.pid !== state.you);
+  $('chatBadge').textContent = unread.length > 9 ? '9+' : unread.length;
+  $('chatBadge').classList.toggle('hidden', !unread.length);
+  if (unread.length && !chatOpen) {
+    const m = unread[unread.length - 1];
+    const peek = $('chatPeek');
+    if (peek.dataset.id !== String(m.id)) {
+      peek.dataset.id = m.id;
+      peek.innerHTML = `<b>${esc(m.name)}:</b> ${esc(m.text)}`;
+      peek.classList.remove('hidden');
+      clearTimeout(peekTimer); peekTimer = setTimeout(() => peek.classList.add('hidden'), 4000);
+    }
+  } else {
+    $('chatPeek').classList.add('hidden');
+  }
+}
+
+function openChat(open) {
+  chatOpen = open;
+  renderChat();
+  if (open) { $('chatList').scrollTop = $('chatList').scrollHeight; $('chatIn').focus(); }
+}
+$('chatBtn').onclick = () => openChat(true);
+$('chatPeek').onclick = () => openChat(true);
+$('chatClose').onclick = () => openChat(false);
+$('chatForm').onsubmit = e => {
+  e.preventDefault();
+  const text = $('chatIn').value.trim();
+  if (!text) return;
+  $('chatIn').value = '';
+  send({ type: 'chat', text });
+  $('chatIn').focus();
+};
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && chatOpen) openChat(false); });
 
 async function send(m) {
   const body = { code: state?.code, pid, ...m };
@@ -370,6 +472,7 @@ const COLOR_HEX = { sun: 'var(--sun)', leaf: 'var(--leaf)', wave: 'var(--wave)',
 function render() {
   const screen = !state ? 'home' : state.phase === 'lobby' ? 'lobby' : 'game';
   ['home', 'lobby', 'game'].forEach(s => $(s).classList.toggle('hidden', s !== screen));
+  renderChat();
   $('over').classList.toggle('hidden', !state || state.phase !== 'roundOver');
   if (!state) return;
   const isHost = state.hostId === state.you;
