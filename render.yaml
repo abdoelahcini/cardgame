@@ -1,7 +1,0 @@
-services:
-  - type: web
-    name: spark-card-game
-    runtime: node
-    plan: free
-    buildCommand: npm install
-    startCommand: npm start

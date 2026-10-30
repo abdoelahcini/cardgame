@@ -253,29 +253,64 @@ $('name').value = store.get('spark.name') || '';
 const urlRoom = new URLSearchParams(location.search).get('room');
 if (urlRoom) $('codeIn').value = urlRoom.toUpperCase();
 
-let ws, state = null, pendingWild = null, prevHandIds = new Set();
+let state = null, version = 0, online = [], pendingWild = null, prevHandIds = new Set();
+
+function applyState(s, v) {
+  if (v < version) return; // an older response arrived late
+  state = s; version = v;
+  store.set('spark.room', state.code);
+  applyOnline();
+  render();
+}
+function applyOnline() {
+  if (state) for (const p of state.players) p.connected = p.id === state.you || online.includes(p.id);
+}
+function leaveRoom() { state = null; version = 0; store.del('spark.room'); render(); }
+
+async function send(m) {
+  const body = { code: state?.code, pid, ...m };
+  try {
+    const res = await fetch('/api/action', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    const out = await res.json();
+    $('conn').textContent = '';
+    if (out.left) return leaveRoom();
+    if (out.error) {
+      toast(out.error);
+      if (!state && /not found|already started|full/.test(out.error)) store.del('spark.room');
+      return;
+    }
+    applyState(out.state, out.v);
+  } catch {
+    $('conn').textContent = 'Connection problem — retrying…';
+  }
+}
+
+async function pollLoop() {
+  const code = state?.code;
+  if (code) {
+    try {
+      const res = await fetch(`/api/poll?code=${code}&pid=${encodeURIComponent(pid)}&v=${version}`);
+      const out = await res.json();
+      $('conn').textContent = '';
+      if (res.status === 404) { toast('That room has closed'); leaveRoom(); }
+      else if (out.v !== undefined && state?.code === code) {
+        const changedOnline = out.online.join() !== online.join();
+        online = out.online;
+        if (out.state) applyState(out.state, out.v);
+        else if (changedOnline) { applyOnline(); render(); }
+      }
+    } catch {
+      $('conn').textContent = 'Reconnecting…';
+    }
+  }
+  setTimeout(pollLoop, document.hidden ? 4000 : 1000);
+}
 
 function connect() {
-  ws = new WebSocket(`${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}`);
-  ws.onopen = () => {
-    $('conn').textContent = '';
-    const room = store.get('spark.room');
-    if (room) send({ type: 'join', code: room, name: store.get('spark.name'), pid });
-  };
-  ws.onmessage = e => {
-    const m = JSON.parse(e.data);
-    if (m.type === 'state') { state = m.state; store.set('spark.room', state.code); render(); }
-    else if (m.type === 'left') { state = null; store.del('spark.room'); render(); }
-    else if (m.type === 'error') {
-      toast(m.message);
-      if (m.message === 'Room not found' || m.message.includes('already started') || m.message.includes('full')) {
-        if (!state) store.del('spark.room');
-      }
-    }
-  };
-  ws.onclose = () => { $('conn').textContent = 'Reconnecting…'; setTimeout(connect, 1500); };
+  const room = store.get('spark.room');
+  if (room) send({ type: 'join', code: room, name: store.get('spark.name') });
+  pollLoop();
 }
-function send(m) { if (ws && ws.readyState === 1) ws.send(JSON.stringify(m)); }
 
 let toastTimer;
 function toast(msg) {

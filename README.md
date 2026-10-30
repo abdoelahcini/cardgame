@@ -2,21 +2,17 @@
 
 An original online card game for 2–4 players. Match the top card's color or symbol and be the first to empty your hand.
 
-## Run
+## Run locally
 
-    npm install
     npm start          # http://localhost:3000
 
-## Play online with someone
+No install step is needed. Locally, rooms live in memory.
 
-The other player has to be able to reach your server. Pick one:
+## Deploy (Vercel)
 
-- **Quick (from your PC):** run `npm start`, then in another terminal `npx cloudflared tunnel --url http://localhost:3000`.
-  Send the `https://….trycloudflare.com` link it prints. It works only while your PC and both commands stay running.
-- **Always online:** push this folder to GitHub and deploy it as a Node web service on Render or Railway
-  (start command `npm start`; the server reads `PORT`).
-
-Create a room, press **Copy invite link**, send it, then press **Start** once they've joined.
+The site is static `public/` plus two functions: `api/action.js` and `api/poll.js`.
+Room state is stored in Upstash Redis. Add it from the Vercel Marketplace, and it sets
+`KV_REST_API_URL` / `KV_REST_API_TOKEN` for you. Browsers poll about once a second for changes.
 
 ## Cards (108)
 
