@@ -20,10 +20,12 @@ Room state is stored in Upstash Redis. Add it from the Vercel Marketplace, and i
 |---|---|
 | 0–9 | Match by color or number |
 | ⦸ Skip | Next player loses their turn |
-| +2 | Next player draws 2 and loses their turn, unless they stack their own +2 to pass the total on (2, 4, 6…) |
+| +2 | Next player draws 2 and loses their turn |
 | 🎁 Gift | Give one of your cards to the next player |
 | ★ Wild | Choose the color |
 | +4 Wild | Choose the color; next player draws 4 and loses their turn |
+
+**Stacking:** if you're hit by a +2 or +4, you can play your own to pass the growing total to the next player. A +4 can go on anything; a +2 only on a +2. If you can't (or won't) stack, draw the whole total and lose your turn.
 
 Can't play? Draw one card. If it fits, you may play it right away; otherwise your turn ends.
 At one card left, press **Last card!** If you forget, anyone can press **Catch!** and you draw 2.

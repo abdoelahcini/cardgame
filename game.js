@@ -115,6 +115,7 @@ class Room {
     this.round++;
     this.drawnId = null;
     this.pending = 0;
+    this.pendingType = null;
     this.winner = null;
     this.phase = 'play';
     this.say(`Round ${this.round} begins — ${this.current().name} goes first`);
@@ -125,8 +126,9 @@ class Room {
   top() { return this.discard[this.discard.length - 1]; }
 
   canPlay(card) {
-    // While +2s are stacking, the only way out besides drawing is another +2.
-    if (this.pending) return card.value === 'draw2';
+    // While a stack is building, the only way out besides drawing is to add to it:
+    // +4 goes on anything, +2 only on a +2.
+    if (this.pending) return card.value === 'wild4' || (card.value === 'draw2' && this.pendingType !== 'wild4');
     return card.color === 'wild' || card.color === this.color || card.value === this.top().value;
   }
 
@@ -193,14 +195,11 @@ class Room {
         this.advance(2);
         break;
       case 'draw2':
-        this.pending = (this.pending || 0) + 2;
-        this.advance(1);
-        this.say(`${this.current().name} must stack a +2 or draw ${this.pending}`);
-        break;
       case 'wild4':
-        this.give(this.next(), 4);
-        this.say(`${this.next().name} draws 4 and is skipped`);
-        this.advance(2);
+        this.pending = (this.pending || 0) + (card.value === 'wild4' ? 4 : 2);
+        this.pendingType = card.value;
+        this.advance(1);
+        this.say(`${this.current().name} must stack ${card.value === 'wild4' ? 'a +4' : 'a +2 or +4'} or draw ${this.pending}`);
         break;
       case 'gift':
         this.phase = 'gift';
@@ -228,6 +227,7 @@ class Room {
     if (this.pending) {
       const n = this.pending;
       this.pending = 0;
+      this.pendingType = null;
       this.give(p, n);
       this.say(`${p.name} draws ${n} and is skipped`);
       this.advance(1);
@@ -276,6 +276,7 @@ class Room {
     this.phase = 'roundOver';
     this.drawnId = null;
     this.pending = 0;
+    this.pendingType = null;
     this.say(`${w.name} wins the round (+${pts})`);
   }
 
@@ -298,6 +299,7 @@ class Room {
       drawnId: this.current()?.id === id ? this.drawnId : null,
       deckCount: this.deck.length,
       pending: this.pending || 0,
+      pendingType: this.pending ? this.pendingType || 'draw2' : null,
       round: this.round,
       winner: this.winner,
       log: this.log.slice(-12),
