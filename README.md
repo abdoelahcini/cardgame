@@ -20,7 +20,7 @@ Room state is stored in Upstash Redis. Add it from the Vercel Marketplace, and i
 |---|---|
 | 0–9 | Match by color or number |
 | ⦸ Skip | Next player loses their turn |
-| +2 | Next player draws 2 and loses their turn |
+| +2 | Next player draws 2 and loses their turn, unless they stack their own +2 to pass the total on (2, 4, 6…) |
 | 🎁 Gift | Give one of your cards to the next player |
 | ★ Wild | Choose the color |
 | +4 Wild | Choose the color; next player draws 4 and loses their turn |

@@ -165,7 +165,7 @@
     </div>
     <div class="rules">
       <b>How to play:</b> play a card that matches the top card's <b>color</b> or <b>symbol</b>.
-      Can't play? Draw one. <b>⦸ Skip</b> skips the next player, <b>+2</b> makes them draw two,
+      Can't play? Draw one. <b>⦸ Skip</b> skips the next player, <b>+2</b> makes them draw two (unless they stack their own +2 and pass the pile on),
       <b>🎁 Gift</b> lets you hand one of your cards to the next player, <b>★ Wild</b> picks the color,
       <b>+4 Wild</b> picks the color and makes them draw four.
       Down to one card? Press <b>Last card!</b> before someone catches you (+2).
@@ -358,6 +358,7 @@ function cardEl(c, cls = '') {
 }
 
 function canPlay(c) {
+  if (state.pending) return c.value === 'draw2';
   return c.color === 'wild' || c.color === state.color || c.value === state.top.value;
 }
 
@@ -413,7 +414,9 @@ function render() {
   if (state.phase === 'roundOver') st.textContent = 'Round over';
   else if (gifting) st.textContent = `Pick a card to gift to ${nextAfterMe().name} 🎁`;
   else if (myTurn && state.drawnId) st.textContent = 'Play the card you drew, or keep it';
+  else if (myTurn && state.pending) st.textContent = `Stack a +2, or tap the pile to draw ${state.pending}`;
   else if (myTurn) st.textContent = 'Your turn';
+  else if (turnP && state.pending) st.textContent = `${turnP.name} must stack a +2 or draw ${state.pending}`;
   else st.textContent = turnP ? `${turnP.name}'s turn${state.phase === 'gift' ? ' (gifting…)' : ''}` : '';
   $('log').innerHTML = state.log.slice(-3).map(esc).join('<br>');
   $('drawPile').style.opacity = myTurn && state.phase === 'play' && !state.drawnId ? 1 : .6;

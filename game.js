@@ -114,6 +114,7 @@ class Room {
     this.turn = this.round % this.players.length;
     this.round++;
     this.drawnId = null;
+    this.pending = 0;
     this.winner = null;
     this.phase = 'play';
     this.say(`Round ${this.round} begins — ${this.current().name} goes first`);
@@ -124,6 +125,8 @@ class Room {
   top() { return this.discard[this.discard.length - 1]; }
 
   canPlay(card) {
+    // While +2s are stacking, the only way out besides drawing is another +2.
+    if (this.pending) return card.value === 'draw2';
     return card.color === 'wild' || card.color === this.color || card.value === this.top().value;
   }
 
@@ -190,9 +193,9 @@ class Room {
         this.advance(2);
         break;
       case 'draw2':
-        this.give(this.next(), 2);
-        this.say(`${this.next().name} draws 2 and is skipped`);
-        this.advance(2);
+        this.pending = (this.pending || 0) + 2;
+        this.advance(1);
+        this.say(`${this.current().name} must stack a +2 or draw ${this.pending}`);
         break;
       case 'wild4':
         this.give(this.next(), 4);
@@ -222,6 +225,14 @@ class Room {
   draw(id) {
     const p = this.requireTurn(id);
     if (this.drawnId !== null) throw new GameError('You already drew — play it or pass');
+    if (this.pending) {
+      const n = this.pending;
+      this.pending = 0;
+      this.give(p, n);
+      this.say(`${p.name} draws ${n} and is skipped`);
+      this.advance(1);
+      return;
+    }
     this.give(p, 1);
     const card = p.hand[p.hand.length - 1];
     if (card && this.canPlay(card)) {
@@ -264,6 +275,7 @@ class Room {
     this.winner = { id: w.id, name: w.name, points: pts };
     this.phase = 'roundOver';
     this.drawnId = null;
+    this.pending = 0;
     this.say(`${w.name} wins the round (+${pts})`);
   }
 
@@ -285,6 +297,7 @@ class Room {
       turnId: this.phase === 'play' || this.phase === 'gift' ? this.current().id : null,
       drawnId: this.current()?.id === id ? this.drawnId : null,
       deckCount: this.deck.length,
+      pending: this.pending || 0,
       round: this.round,
       winner: this.winner,
       log: this.log.slice(-12),
