@@ -133,6 +133,8 @@
     padding: 10px 18px; border-radius: 12px; z-index: 20; font-weight: 600; transition: opacity .3s; }
   .conn { position: fixed; bottom: 8px; left: 10px; font-size: 12px; color: var(--muted); }
 
+  .leave-game { position: fixed; top: 12px; left: 12px; z-index: 14; padding: 8px 12px; font-size: 14px; }
+
   /* Chat */
   .chat-btn {
     position: fixed; right: 12px; top: 12px; z-index: 15; width: 46px; height: 46px; padding: 0;
@@ -222,6 +224,7 @@
 
 <!-- Game -->
 <div id="game" class="hidden">
+  <button class="ghost leave-game" id="gameLeave">Leave</button>
   <div class="top" id="opps"></div>
   <div class="middle">
     <div class="status" id="status"></div>
@@ -410,8 +413,16 @@ async function pollLoop() {
 }
 
 function connect() {
-  const room = store.get('spark.room');
-  if (room) send({ type: 'join', code: room, name: store.get('spark.name') });
+  // An invite link beats the room this browser remembers from an earlier game.
+  const name = store.get('spark.name');
+  const invite = urlRoom && urlRoom.toUpperCase();
+  if (invite && name) {
+    history.replaceState(null, '', location.pathname);
+    send({ type: 'join', code: invite, name });
+  } else if (!invite) {
+    const room = store.get('spark.room');
+    if (room) send({ type: 'join', code: room, name });
+  }
   pollLoop();
 }
 
@@ -436,6 +447,17 @@ $('codeIn').onkeydown = e => { if (e.key === 'Enter') $('joinBtn').click(); };
 $('startBtn').onclick = () => send({ type: 'start' });
 $('nextBtn').onclick = () => send({ type: 'start' });
 $('leaveBtn').onclick = () => send({ type: 'leave' });
+let leaveArmed;
+$('gameLeave').onclick = () => {
+  const b = $('gameLeave');
+  if (!leaveArmed) {
+    b.textContent = 'Tap again to leave';
+    leaveArmed = setTimeout(() => { leaveArmed = null; b.textContent = 'Leave'; }, 3000);
+    return;
+  }
+  clearTimeout(leaveArmed); leaveArmed = null; b.textContent = 'Leave';
+  send({ type: 'leave' });
+};
 $('copyBtn').onclick = async () => {
   const link = `${location.origin}${location.pathname}?room=${state.code}`;
   try { await navigator.clipboard.writeText(link); toast('Invite link copied'); }
@@ -475,16 +497,13 @@ function render() {
   renderChat();
   $('over').classList.toggle('hidden', !state || state.phase !== 'roundOver');
   if (!state) return;
-  const isHost = state.hostId === state.you;
 
   if (screen === 'lobby') {
     $('lobbyCode').textContent = state.code;
     $('lobbyPlayers').innerHTML = state.players.map(p =>
       `<li><span>${esc(p.name)}${p.id === state.you ? ' (you)' : ''}</span><span>${p.id === state.hostId ? '👑' : ''}</span></li>`).join('');
-    $('startBtn').classList.toggle('hidden', !isHost);
     $('startBtn').disabled = state.players.length < 2;
-    $('lobbyHint').textContent = state.players.length < 2 ? 'Waiting for someone to join…'
-      : isHost ? '' : 'Waiting for the host to start…';
+    $('lobbyHint').textContent = state.players.length < 2 ? 'Waiting for someone to join…' : 'Anyone can start';
     return;
   }
 
@@ -562,8 +581,7 @@ function render() {
       (p.hand || []).forEach(c => row.querySelector('.left').appendChild(cardEl(c, 'mini')));
       $('overScores').appendChild(row);
     }
-    $('nextBtn').classList.toggle('hidden', !isHost);
-    $('overHint').textContent = isHost ? '' : 'Waiting for the host…';
+    $('overHint').textContent = 'Either of you can start the next round';
   }
 }
 

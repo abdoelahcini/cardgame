@@ -97,7 +97,7 @@ class Room {
   }
 
   start(byId) {
-    if (byId !== this.hostId) throw new GameError('Only the host can start');
+    this.player(byId); // any player in the room can start a round
     if (this.phase !== 'lobby' && this.phase !== 'roundOver') throw new GameError('A round is in progress');
     if (this.players.length < 2) throw new GameError('Need at least 2 players');
 
