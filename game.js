@@ -4,6 +4,7 @@ const HAND_SIZE = 7;
 const MAX_PLAYERS = 4;
 const CHAT_MAX = 200;  // characters per message
 const CHAT_KEEP = 60;  // messages kept per room
+const FORFEIT_MS = 40 * 1000; // offline this long and the others can claim the round
 
 let nextCardId = 1;
 
@@ -280,6 +281,18 @@ class Room {
     if (this.chat.length > CHAT_KEEP) this.chat.shift();
   }
 
+  // seen: { playerId: last poll time } from the store. Players never seen count as gone.
+  claimWin(id, seen, now) {
+    const p = this.player(id);
+    if (this.phase !== 'play' && this.phase !== 'gift') throw new GameError('No round in progress');
+    const others = this.players.filter(o => o !== p);
+    const stillHere = others.filter(o => now - (seen[o.id] || 0) < FORFEIT_MS);
+    if (stillHere.length) throw new GameError(`${stillHere[0].name} is still here`);
+    this.say(`${others.map(o => o.name).join(', ')} left — ${p.name} claims the win`);
+    this.endRound(p);
+    this.winner.forfeit = true;
+  }
+
   endRound(w) {
     const pts = this.players.filter(p => p !== w).reduce((s, p) => s + p.hand.reduce((a, c) => a + cardPoints(c), 0), 0);
     w.score += pts;
@@ -319,4 +332,4 @@ class Room {
   }
 }
 
-module.exports = { Room, GameError, COLORS };
+module.exports = { Room, GameError, COLORS, FORFEIT_MS };

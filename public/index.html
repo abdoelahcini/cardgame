@@ -241,6 +241,7 @@
     <div class="actions">
       <button class="ghost hidden" id="passBtn">Keep it & pass</button>
       <button class="hot" id="lastBtn">Last card!</button>
+      <button class="hot hidden" id="claimBtn">🏆 Claim the win</button>
     </div>
     <div class="me-line" id="meLine"></div>
     <div class="hand" id="hand"></div>
@@ -300,7 +301,7 @@ $('name').value = store.get('spark.name') || '';
 const urlRoom = new URLSearchParams(location.search).get('room');
 if (urlRoom) $('codeIn').value = urlRoom.toUpperCase();
 
-let state = null, version = 0, online = [], pendingWild = null, prevHandIds = new Set();
+let state = null, version = 0, online = [], idle = {}, pendingWild = null, prevHandIds = new Set();
 
 function applyState(s, v) {
   if (v < version) return; // an older response arrived late
@@ -358,6 +359,7 @@ function renderChat() {
 function openChat(open) {
   chatOpen = open;
   renderChat();
+  renderClaim();
   if (open) { $('chatList').scrollTop = $('chatList').scrollHeight; $('chatIn').focus(); }
 }
 $('chatBtn').onclick = () => openChat(true);
@@ -402,8 +404,10 @@ async function pollLoop() {
       else if (out.v !== undefined && state?.code === code) {
         const changedOnline = out.online.join() !== online.join();
         online = out.online;
+        idle = out.idle || {};
         if (out.state) applyState(out.state, out.v);
         else if (changedOnline) { applyOnline(); render(); }
+        renderClaim();
       }
     } catch {
       $('conn').textContent = 'Reconnecting…';
@@ -411,6 +415,22 @@ async function pollLoop() {
   }
   setTimeout(pollLoop, document.hidden ? 4000 : 1000);
 }
+
+// When everyone else has been offline long enough, offer to end the round as the winner.
+const FORFEIT_S = 40; // matches FORFEIT_MS in game.js
+function renderClaim() {
+  const b = $('claimBtn');
+  const others = state ? state.players.filter(p => p.id !== state.you) : [];
+  const playing = state && (state.phase === 'play' || state.phase === 'gift');
+  if (!playing || !others.length || others.some(p => online.includes(p.id))) { b.classList.add('hidden'); return; }
+  const wait = Math.max(0, ...others.map(p => FORFEIT_S - Math.floor((idle[p.id] ?? Infinity) / 1000)));
+  b.classList.remove('hidden');
+  b.disabled = wait > 0;
+  b.textContent = wait > 0
+    ? `${others.map(p => p.name).join(', ')} offline — claim the win in ${wait}s`
+    : '🏆 Claim the win';
+}
+$('claimBtn').onclick = () => send({ type: 'claim' });
 
 function connect() {
   // An invite link beats the room this browser remembers from an earlier game.
@@ -495,6 +515,7 @@ function render() {
   const screen = !state ? 'home' : state.phase === 'lobby' ? 'lobby' : 'game';
   ['home', 'lobby', 'game'].forEach(s => $(s).classList.toggle('hidden', s !== screen));
   renderChat();
+  renderClaim();
   $('over').classList.toggle('hidden', !state || state.phase !== 'roundOver');
   if (!state) return;
 
@@ -572,8 +593,10 @@ function render() {
 
   // Round over
   if (state.phase === 'roundOver' && state.winner) {
+    const left = state.winner.forfeit
+      ? ` — ${state.players.filter(p => p.id !== state.winner.id).map(p => p.name).join(', ')} left` : '';
     $('overTitle').textContent = state.winner.id === state.you
-      ? `You win! +${state.winner.points}` : `${state.winner.name} wins (+${state.winner.points})`;
+      ? `You win${left}! +${state.winner.points}` : `${state.winner.name} wins${left} (+${state.winner.points})`;
     $('overScores').innerHTML = '';
     for (const p of [...state.players].sort((a, b) => b.score - a.score)) {
       const row = document.createElement('div'); row.className = 's';
