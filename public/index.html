@@ -140,6 +140,10 @@
     position: fixed; right: 12px; top: 12px; z-index: 15; width: 46px; height: 46px; padding: 0;
     border-radius: 50%; font-size: 22px; background: #fff; box-shadow: 0 4px 14px rgba(0,0,0,.4);
   }
+  .sound-btn {
+    position: fixed; right: 66px; top: 12px; z-index: 15; width: 46px; height: 46px; padding: 0;
+    border-radius: 50%; font-size: 20px; background: rgba(255,255,255,.15);
+  }
   .chat-btn .badge {
     position: absolute; top: -4px; right: -4px; min-width: 22px; height: 22px; padding: 0 6px; border-radius: 11px;
     background: var(--ember); color: #fff; font-size: 13px; line-height: 22px;
@@ -285,6 +289,7 @@
 </div>
 
 <!-- Chat -->
+<button id="soundBtn" class="sound-btn hidden" title="Turn sound on/off">🔔</button>
 <button id="chatBtn" class="chat-btn hidden" title="Chat">💬<span id="chatBadge" class="badge hidden"></span></button>
 <div id="chatPeek" class="chat-peek hidden"></div>
 <div id="chatPanel" class="chat-panel hidden">
@@ -321,11 +326,57 @@ function applyState(s, v) {
   store.set('spark.room', state.code);
   applyOnline();
   render();
+  checkTurnSound();
 }
 function applyOnline() {
   if (state) for (const p of state.players) p.connected = p.id === state.you || online.includes(p.id);
 }
-function leaveRoom() { state = null; version = 0; chatOpen = false; seenChatId = null; store.del('spark.room'); render(); }
+function leaveRoom() { state = null; version = 0; chatOpen = false; seenChatId = null; wasMyTurn = null; store.del('spark.room'); render(); }
+
+// Turn sound: a two-note chime (plus a short buzz on phones) when the turn passes to you.
+// Browsers only allow audio after the viewer has tapped the page, so the context is unlocked on first input.
+let audioCtx = null, wasMyTurn = null, soundOn = store.get('spark.sound') !== 'off';
+function unlockAudio() {
+  if (!audioCtx) { try { audioCtx = new (window.AudioContext || window.webkitAudioContext)(); } catch { return; } }
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+}
+document.addEventListener('pointerdown', unlockAudio);
+document.addEventListener('keydown', unlockAudio);
+
+function chime() {
+  if (!soundOn || !audioCtx) return;
+  const t = audioCtx.currentTime;
+  for (const [freq, at] of [[659.25, 0], [880, 0.13]]) {
+    const osc = audioCtx.createOscillator(), gain = audioCtx.createGain();
+    osc.type = 'sine';
+    osc.frequency.value = freq;
+    gain.gain.setValueAtTime(0.0001, t + at);
+    gain.gain.exponentialRampToValueAtTime(0.25, t + at + 0.02);
+    gain.gain.exponentialRampToValueAtTime(0.0001, t + at + 0.4);
+    osc.connect(gain).connect(audioCtx.destination);
+    osc.start(t + at);
+    osc.stop(t + at + 0.45);
+  }
+  try { navigator.vibrate?.(120); } catch {}
+}
+
+function checkTurnSound() {
+  const mine = !!state && state.turnId === state.you && (state.phase === 'play' || state.phase === 'gift');
+  if (wasMyTurn === false && mine) chime(); // only on the change, not on page load
+  wasMyTurn = state ? mine : null;
+}
+
+function renderSoundBtn() {
+  $('soundBtn').classList.toggle('hidden', !state);
+  $('soundBtn').textContent = soundOn ? '🔔' : '🔕';
+}
+$('soundBtn').onclick = () => {
+  soundOn = !soundOn;
+  store.set('spark.sound', soundOn ? 'on' : 'off');
+  renderSoundBtn();
+  unlockAudio();
+  chime(); // preview when switching on
+};
 
 // Chat: messages arrive with the room state; we only track what this viewer has seen.
 let chatOpen = false, seenChatId = null, renderedChatId = null;
@@ -542,6 +593,7 @@ function render() {
   ['home', 'lobby', 'game'].forEach(s => $(s).classList.toggle('hidden', s !== screen));
   renderChat();
   renderClaim();
+  renderSoundBtn();
   $('over').classList.toggle('hidden', !state || state.phase !== 'roundOver');
   if (!state) return;
 

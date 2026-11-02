@@ -20,6 +20,11 @@ A player who closes the page can reopen it on the same device and pick up where 
 If everyone else has been offline for 40 seconds during a round, **Claim the win** appears: it ends
 the round with you as the winner, scoring the cards left in their hands.
 
+## Turn sound
+
+A short chime plays (and phones buzz, where supported) when the turn passes to you. Tap 🔔 to mute; the
+choice is remembered. Browsers only allow sound after you've tapped the page once.
+
 ## Chat
 
 Tap 💬 in the top-right corner to chat in the lobby or during a game. Messages from the other player show a
