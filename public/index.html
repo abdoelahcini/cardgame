@@ -210,7 +210,7 @@
     </div>
     <div class="rules">
       <b>How to play:</b> play a card that matches the top card's <b>color</b> or <b>symbol</b>.
-      Can't play? Draw one. <b>⦸ Skip</b> skips the next player, <b>+2</b> makes them draw two,
+      Can't play? A card is drawn for you automatically. <b>⦸ Skip</b> skips the next player, <b>+2</b> makes them draw two,
       <b>🎁 Gift</b> lets you hand one of your cards to the next player, <b>★ Wild</b> picks the color,
       <b>+4 Wild</b> picks the color and makes them draw four.
       <b>Stacking:</b> hit by a +2 or +4? Play your own to pass the total on. +4 goes on anything, +2 only on a +2.
@@ -430,6 +430,18 @@ async function pollLoop() {
   setTimeout(pollLoop, document.hidden ? 4000 : 1000);
 }
 
+// With nothing playable, draw for the player after a short pause so they see why.
+// Any state change in the meantime (a chat message, a catch) cancels and re-checks.
+const AUTO_DRAW_MS = 1200;
+let autoDrawFor = null;
+function scheduleAutoDraw(stuck) {
+  if (!stuck || autoDrawFor === version) return;
+  const v = autoDrawFor = version;
+  setTimeout(() => {
+    if (version === v && state?.turnId === state.you && state.phase === 'play' && !state.drawnId) send({ type: 'draw' });
+  }, AUTO_DRAW_MS);
+}
+
 // When everyone else has been offline long enough, offer to end the round as the winner.
 const FORFEIT_S = 40; // matches FORFEIT_MS in game.js
 function renderClaim() {
@@ -546,6 +558,8 @@ function render() {
   const myTurn = state.turnId === state.you;
   const gifting = myTurn && state.phase === 'gift';
   const turnP = state.players.find(p => p.id === state.turnId);
+  const stuck = myTurn && state.phase === 'play' && !state.drawnId && !state.hand.some(canPlay);
+  scheduleAutoDraw(stuck);
 
   // Opponents
   $('opps').innerHTML = '';
@@ -574,6 +588,7 @@ function render() {
   if (state.phase === 'roundOver') st.textContent = 'Round over';
   else if (gifting) st.textContent = `Pick a card to gift to ${nextAfterMe().name} 🎁`;
   else if (myTurn && state.drawnId) st.textContent = 'Play the card you drew, or keep it';
+  else if (stuck) st.textContent = state.pending ? `Nothing to stack — drawing ${state.pending}…` : 'No card to play — drawing…';
   else if (myTurn && state.pending) st.textContent = `Stack ${stackable()}, or tap the pile to draw ${state.pending}`;
   else if (myTurn) st.textContent = 'Your turn';
   else if (turnP && state.pending) st.textContent = `${turnP.name} must stack ${stackable()} or draw ${state.pending}`;

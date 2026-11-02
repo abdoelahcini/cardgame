@@ -38,6 +38,6 @@ badge and a short preview. Each room keeps its last 60 messages, up to 200 chara
 
 **Stacking:** if you're hit by a +2 or +4, you can play your own to pass the growing total to the next player. A +4 can go on anything; a +2 only on a +2. If you can't (or won't) stack, draw the whole total and lose your turn.
 
-Can't play? Draw one card. If it fits, you may play it right away; otherwise your turn ends.
+Can't play? A card is drawn for you automatically after a second. If it fits, you may play it right away; otherwise your turn ends. Hit by a +2/+4 with nothing to stack? You take the total automatically.
 At one card left, press **Last card!** If you forget, anyone can press **Catch!** and you draw 2.
 The round winner scores the cards left in the other hands: numbers count face value, action cards 20, wilds 50.
