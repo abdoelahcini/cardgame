@@ -145,9 +145,21 @@
     background: var(--ember); color: #fff; font-size: 13px; line-height: 22px;
   }
   .chat-peek {
-    position: fixed; right: 12px; top: 66px; z-index: 15; max-width: min(280px, calc(100vw - 32px));
-    background: #fff; color: #173a33; padding: 8px 12px; border-radius: 14px 4px 14px 14px;
-    box-shadow: 0 4px 14px rgba(0,0,0,.35); font-size: 14px; cursor: pointer; overflow-wrap: anywhere;
+    position: fixed; right: 12px; top: 66px; z-index: 15; max-width: min(300px, calc(100vw - 32px));
+    background: #fff; color: #173a33; padding: 10px 14px; border-radius: 14px 4px 14px 14px;
+    box-shadow: 0 6px 20px rgba(0,0,0,.4); font-size: 15px; cursor: pointer; overflow-wrap: anywhere;
+  }
+  .chat-peek .who { display: block; font-size: 12px; font-weight: 600; color: #2fa866; margin-bottom: 2px; }
+  /* Slides in from the right, stays 4s, slides back out. */
+  .chat-peek.slide { animation: peek 4.7s ease-in-out forwards; }
+  @keyframes peek {
+    0%      { transform: translateX(calc(100% + 24px)); opacity: 0; }
+    7%, 93% { transform: translateX(0); opacity: 1; }
+    100%    { transform: translateX(calc(100% + 24px)); opacity: 0; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .chat-peek.slide { animation-name: peek-fade; }
+    @keyframes peek-fade { 0%, 100% { opacity: 0; } 7%, 93% { opacity: 1; } }
   }
   .chat-panel {
     position: fixed; right: 12px; top: 12px; z-index: 16; width: min(320px, calc(100vw - 24px)); height: min(440px, calc(100dvh - 24px));
@@ -316,7 +328,8 @@ function applyOnline() {
 function leaveRoom() { state = null; version = 0; chatOpen = false; seenChatId = null; store.del('spark.room'); render(); }
 
 // Chat: messages arrive with the room state; we only track what this viewer has seen.
-let chatOpen = false, seenChatId = null, renderedChatId = null, peekTimer;
+let chatOpen = false, seenChatId = null, renderedChatId = null;
+$('chatPeek').onanimationend = () => $('chatPeek').classList.add('hidden');
 
 function renderChat() {
   const inRoom = !!state;
@@ -347,9 +360,10 @@ function renderChat() {
     const peek = $('chatPeek');
     if (peek.dataset.id !== String(m.id)) {
       peek.dataset.id = m.id;
-      peek.innerHTML = `<b>${esc(m.name)}:</b> ${esc(m.text)}`;
-      peek.classList.remove('hidden');
-      clearTimeout(peekTimer); peekTimer = setTimeout(() => peek.classList.add('hidden'), 4000);
+      peek.innerHTML = `<span class="who">${esc(m.name)}</span>${esc(m.text)}`;
+      peek.classList.remove('hidden', 'slide');
+      void peek.offsetWidth; // restart the animation for back-to-back messages
+      peek.classList.add('slide');
     }
   } else {
     $('chatPeek').classList.add('hidden');
